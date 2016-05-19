@@ -8,16 +8,25 @@ module.exports = function(type) {
 
 	// tweak style before ading to content buffer
 	var buildStyle = function(content, compName) {
+		if (!content || !content[1]) return;
+		content = content[1];
+
 		componentContent += content.replace(/[\s|\r|\n]*[C|c]{1}omponent\s?\{/, compName.html + ' {');
 	}
 
 	// tweak template before ading to content buffer
 	var buildTemplate = function(content, compName) {
+		if (!content || !content[1]) return;
+		content = content[1];
+
 		componentContent += '<template id="' + compName.html + '">' + content + '</template>\r\n';
 	}
 
 	// tweak script before ading to content buffer
 	var buildScript = function(content, compName) {
+		if (!content || !content[1]) return;
+		content = content[1];
+
 		// remove all script imports
 		var matches = content.match(/(import\s\{?[\w,\s]*\}?\sfrom\s['|"]{1}[\w.\/-]*['|"]{1})/g);
 		content = content.replace(/(import\s\{?[\w,\s]*\}?\sfrom\s['|"]{1}[\w.\/-]*['|"]{1})/g, '');
@@ -38,7 +47,18 @@ module.exports = function(type) {
 		}
 
 		// change generic class into specific class
-		content = content.replace(/export\sdefault\sclass\s[C|c]{1}omponent/, 'class ' + compName.class);
+		content = content.replace(/class\s[C|c]{1}omponent/, 'class ' + compName.class);
+
+		// ensure we remove export default and have constructor with super call for parent
+		if (!content.match(/constructor\s?\(.*\)\s?\{/)) throw 'Component class must have constructor';
+		content = content.replace(/export\s*default\s*class/, 'class');
+		var hasSuper = content.match(/constructor\s?\(.*\)\s?\{[\r|\n|\s|\t]*super\(.*\)/);
+		if (!hasSuper) content = content.replace(/constructor\s?\(.*\)\s?\{/, 'constructor() {\r\nsuper(\'' + compName.html + '\');\r\n');
+		else content = content.replace(/constructor\s?\(.*\)\s?\{[\r|\n|\s|\t]*super\(.*\)/, 'constructor() {\r\nsuper(\'' + compName.html + '\')');
+
+		// add self registration
+		content += '\r\nnew ' + compName.class + '().register();\r\n';
+
 		componentContent += content;
 	}
 
@@ -79,7 +99,6 @@ module.exports = function(type) {
 		if (type == 'style') match = component[1].match(/<style[^>]*>([\s\S]*)<\/style>/);
 		else if (type == 'template') match = component[1].match(/<template[^>]*>([\s\S]*)<\/template>/);
 		else if (type == 'script') match = component[1].match(/<script[^>]*>([\s\S]*)<\/script>/);
-		if (!match || !match[1]) throw 'Cannot find "' + type + '" tag in "razilo-component"';
 
 		// get details
 		var details = component[1].match(/<details[^>]*>([\s\S]*)<\/details>/);
@@ -92,24 +111,27 @@ module.exports = function(type) {
 		};
 
 		// write contents
-		if (type == 'style') buildStyle(match[1], compName);
-		if (type == 'template') buildTemplate(match[1], compName);
-		if (type == 'script') buildScript(match[1], compName);
+		if (type == 'style') buildStyle(match, compName);
+		if (type == 'template') buildTemplate(match, compName);
+		if (type == 'script') buildScript(match, compName);
 
 		// get imports
 		var imports = component[1].match(/<imports[^>]*>([\s\S]*)<\/imports>/);
 		if (!!imports && !!imports[1])
 		{
-			for (var i = 1; i < imports.length; i++) {
-				var href = imports[i].match(/<link.*type="text\/razilo-component".*rel="import".*href="(.*?)\.html">/);
-				if (href.length == 2)
+			var links = imports[1].match(/[!--]*\s*<link\s*type="text\/razilo-component"\s*rel="import"\s*href=".*">/g);
+			if (!!links && links.length > 0)
+			{
+				for (var i = 0; i < links.length; i++)
 				{
+					if (links[i].indexOf('!--') >= 0) continue;
+					var href = links[i].match(/href=["|']{1}([^"|']*)["|']{1}/);
 					if (componentImports.indexOf(href[1]) < 0)
 					{
 						componentImports.push(href[1]);
-						var data = fs.readFileSync(href[1] + '.html');
-						if (!data) throw 'Cannot read import ' + href[1] + '.html';
-						stripper({path: href[1] + '.html', contents: data}, type);
+						var data = fs.readFileSync(href[1]);
+						if (!data) throw 'Cannot read import ' + href[1];
+						stripper({path: href[1], contents: data}, type);
 					}
 				}
 			}

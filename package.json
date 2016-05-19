@@ -1,6 +1,6 @@
 {
-  "name": "razilocomponent-gulp",
-  "version": "1.0.0",
+  "name": "gulp-razilocomponent",
+  "version": "1.0.1",
   "description": "Compiles raziloComponent web components into compatible formats for babel (script), sass (style) and vulcanize (template).",
   "author": "Paul Smith (smiffy6969)",
   "homepage": "http://component.razilo.net",
